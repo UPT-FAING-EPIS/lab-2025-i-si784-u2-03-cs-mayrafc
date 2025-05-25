@@ -1,0 +1,33 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [ "../Bank.Domain/Bank.Domain.csproj" ],
+          "cwd": "../"
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml",
+          "api/**.md"
+        ]
+      },
+      {
+        "files": [ "articles/**.md", "toc.yml", "*.md" ]
+      }
+    ],
+    "dest": "_site",
+    "globalMetadata": {
+      "_enableSearch": true
+    },
+    "template": [
+      "default"
+    ]
+  }
+}
