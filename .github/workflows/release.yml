@@ -5,40 +5,72 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      matricula:
-        description: 'Código de matrícula para versión NuGet'
-        required: true
-        default: '202112345'
 
 jobs:
-  build-and-publish:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    env:
+      PACKAGE_OUTPUT_DIRECTORY: ./nupkg
 
     steps:
-      - name: Checkout code
+      - name: Checkout del código
         uses: actions/checkout@v3
 
-      - name: Setup .NET SDK
+      - name: Configurar .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore Bank/Bank.sln
+      - name: Extraer versión desde el csproj
+        id: extract_version
+        run: |
+          echo "Contenido del archivo csproj:"
+          cat Bank/Bank.Domain/Bank.Domain.csproj
 
-      - name: Build the project
-        run: dotnet build Bank/Bank.Domain/Bank.Domain.csproj --configuration Release --no-restore
+          VERSION=$(grep -oP '(?<=<Version>).*(?=</Version>)' Bank/Bank.Domain/Bank.Domain.csproj | head -n 1)
+          echo "Versión encontrada: $VERSION"
 
-      - name: Pack NuGet package
-        run: dotnet pack Bank/Bank.Domain/Bank.Domain.csproj --no-build --configuration Release -p:PackageVersion=1.0.0-${{ github.event.inputs.matricula }} -o ./nupkg
+          if [ -z "$VERSION" ]; then
+            echo "Error: No se pudo extraer la versión"
+            exit 1
+          fi
 
-      - name: Publish NuGet package to GitHub Packages
-        run: dotnet nuget push ./nupkg/*.nupkg --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" --api-key ${{ secrets.GITHUB_TOKEN }}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Restaurar dependencias
+        run: dotnet restore Bank/Bank.Domain/Bank.Domain.csproj
+
+      - name: Empaquetar NuGet
+        run: |
+          dotnet pack Bank/Bank.Domain/Bank.Domain.csproj \
+            --configuration Release \
+            -p:PackageVersion=${{ env.VERSION }} \
+            -o ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
+
+      - name: Configurar NuGet para GitHub Packages
+        run: |
+          dotnet nuget remove source github || echo "Fuente 'github' no existe aún"
+          dotnet nuget add source "https://nuget.pkg.github.com/mayrafc/index.json" \
+            --name github \
+            --username ${{ github.actor }} \
+            --password ${{ secrets.TOKENNUEVO }} \
+            --store-password-in-clear-text
+
+      - name: Subir paquete a GitHub Packages
+        run: |
+          dotnet nuget push "${{ env.PACKAGE_OUTPUT_DIRECTORY }}/*.nupkg" \
+            --api-key ${{ secrets.TOKENNUEVO }} \
+            --source github \
+            --skip-duplicate
+
+      - name: Crear Release en GitHub
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0.0-${{ github.event.inputs.matricula }}
-          name: Release v1.0.0-${{ github.event.inputs.matricula }}
-          files: ./nupkg/*.nupkg
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          files: ${{ env.PACKAGE_OUTPUT_DIRECTORY }}/*.nupkg
+          token: ${{ secrets.GH_TOKEN }}
