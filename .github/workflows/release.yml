@@ -1,0 +1,41 @@
+name: Release NuGet Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      matricula:
+        description: 'Código de matrícula para versión NuGet'
+        required: true
+        default: '202112345'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Bank/Bank.sln
+
+      - name: Build the project
+        run: dotnet build Bank/Bank.Domain/Bank.Domain.csproj --configuration Release --no-restore
+
+      - name: Pack NuGet package
+        run: dotnet pack Bank/Bank.Domain/Bank.Domain.csproj --no-build --configuration Release -p:PackageVersion=1.0.0-${{ github.event.inputs.matricula }} -o ./nupkg
+
+      - name: Publish NuGet package to GitHub Packages
+        run: dotnet nuget push ./nupkg/*.nupkg --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" --api-key ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-${{ github.event.inputs.matricula }}
+          name: Release v1.0.0-${{ github.event.inputs.matricula }}
+          files: ./nupkg/*.nupkg
