@@ -1,0 +1,43 @@
+name: Publish Coverage Report
+
+on:
+  push:
+    branches:
+      - main  
+
+jobs:
+  build-test-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'  # o la versión que uses
+
+      - name: Restore dependencies
+        run: dotnet restore Bank/Bank.sln
+
+      - name: Build project
+        run: dotnet build Bank/Bank.sln --no-restore --configuration Release
+
+      - name: Run tests with coverage
+        run: |
+          dotnet tool install --global coverlet.console --version 3.1.2
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet test Bank/Bank.Domain.Tests/Bank.Domain.Tests.csproj --no-build --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput=Bank/Bank.Domain.Tests/TestResults/coverage.xml
+
+      - name: Generate coverage report (HTML)
+        run: |
+          dotnet tool install --global reportgenerator
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          reportgenerator -reports:Bank/Bank.Domain.Tests/TestResults/coverage.xml -targetdir:Bank/Bank.Domain.Tests/TestResults/CoverageReport -reporttypes:Html
+
+      - name: Publish coverage report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: Bank/Bank.Domain.Tests/TestResults/CoverageReport
