@@ -3,7 +3,7 @@ name: Publish Coverage Report
 on:
   push:
     branches:
-      - main  
+      - main
 
 jobs:
   build-test-coverage:
@@ -16,7 +16,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0.x'  # o la versión que uses
+          dotnet-version: '8.0.x'
 
       - name: Restore dependencies
         run: dotnet restore Bank/Bank.sln
@@ -26,13 +26,19 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          dotnet tool install --global coverlet.console --version 3.1.2
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          dotnet test Bank/Bank.Domain.Tests/Bank.Domain.Tests.csproj --no-build --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput=Bank/Bank.Domain.Tests/TestResults/coverage.xml
+          dotnet test Bank/Bank.Domain.Tests/Bank.Domain.Tests.csproj \
+            --no-build --configuration Release \
+            --collect:"XPlat Code Coverage"
+
+      - name: Install ReportGenerator tool globally
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
       - name: Generate coverage report (HTML)
         run: |
-          dotnet tool restore || dotnet tool install reportgenerator --version 5.1.14 --tool-path ./tools
-          ./tools/reportgenerator -reports:Bank/Bank.Domain.Tests/TestResults/coverage.xml -targetdir:Bank/Bank.Domain.Tests/TestResults/CoverageReport -reporttypes:Html
+          reportgenerator \
+            -reports:"Bank/Bank.Domain.Tests/TestResults/**/coverage.cobertura.xml" \
+            -targetdir:"Bank/Bank.Domain.Tests/TestResults/CoverageReport" \
+            -reporttypes:Html
 
       - name: Publish coverage report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
